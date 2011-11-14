@@ -1,11 +1,10 @@
 /* jsShapes
  * Author:  Mikko Haavisto
  * Mail:    mikko.haavisto at lut.fi
- * Date:    23.10.2011
- * Version: 1.0
  *
  * Description: Prevent blocks from moving to the bottom.
  *              Also fancy weapon included. :)
+ *              LocalStorage used for saving rankings.
  */
 
 var jsShapes = {};
@@ -49,7 +48,7 @@ var utils = (function namespace() {
     }
 
     function shake(e, intensity) {
-        var intensity = intensity || 2;
+        intensity = intensity || 2;
         // Move element randomly to left (+/-) to make shake effect
         function f() {
             var test = Math.round(Math.sin(2 * Math.PI * Math.random()) * intensity);
@@ -72,7 +71,7 @@ var utils = (function namespace() {
 
             if (remaining < 1) {
                 f(remaining);
-                setTimeout(animate, 20) // call function again with setTimeout
+                setTimeout(animate, 20); // call function again with setTimeout
             } else {
                 callback();
             }
@@ -91,7 +90,7 @@ var utils = (function namespace() {
 }());
 
 // id selector shortcut, $('id')
-var $ = function(id) { return document.getElementById(id); }
+var $ = (function(id) { return document.getElementById(id); });
 
 
 /* Prototypes starts */
@@ -244,7 +243,7 @@ var Player = (function namespace() {
     // Set constructor
     Player.prototype.constructor = Player;
     // Set init values
-    Player.prototype.reset = function () {
+    Player.prototype.reset = (function () {
         this.x = 400;
         this.y = 380;
         this.size = 10;
@@ -254,7 +253,7 @@ var Player = (function namespace() {
         this.shape = 'circle';
         this.color = colors[utils.randomRange(0, colors.length - 1)][1];
         this.name = this.name || ""; // if name exists, don't change it
-    }
+    });
 
     return Player;
 }());
@@ -278,9 +277,9 @@ var Bullet = (function namespace() {
     Bullet.prototype = Object.create(GameElement.prototype);
     // Set constructor
     Bullet.prototype.constructor = Bullet;
-    Bullet.prototype.isMoving = function () {
+    Bullet.prototype.isMoving = (function () {
         return (this.dx !== 0 || this.dy !== 0);
-    }
+    });
 
     return Bullet;
 }());
@@ -294,7 +293,7 @@ var Opponent = (function namespace() {
     // Set constructor
     Opponent.prototype.constructor = Opponent;
     // Set init values
-    Opponent.prototype.reset = function (level) {
+    Opponent.prototype.reset = (function (level) {
         var i, j;
         // Opponent init by randomizer functions
         if (!level) { level = 1; } // default level
@@ -310,10 +309,11 @@ var Opponent = (function namespace() {
         i = (level < 9) ? Math.round(level - 1) : utils.randomRange(0, 7);
         j = (level < 9) ? utils.randomRange(0, 5) : 5;
         this.color = colors[i][j];
-    }
-    Opponent.prototype.onBottomEdge = function () {
+    });
+    
+    Opponent.prototype.onBottomEdge = (function () {
         return (this.y === jsShapes.height - this.size);
-    }
+    });
 
     return Opponent;
 }());
@@ -403,7 +403,9 @@ jsShapes.game = (function namespace() {
     }
 
     function enterKey() {
-        if (value = validate(el.playerInput.value)) {
+        value = validate(el.playerInput.value);
+        
+        if (value) {
             el.playerInput.blur();
             player.name = value;
             el.playerField.innerHTML = player.name;
@@ -445,7 +447,7 @@ jsShapes.game = (function namespace() {
         } else if (misc.overheat) { utils.shake(el.canvas, 8); // intensity = 8, inform player about a weapon overheating
         } else { bullets.push(new Bullet(player)); }
 
-        if (bullets.length > 20) { misc.overheat = true; };
+        if (bullets.length > 20) { misc.overheat = true; }
     }
 
     function fps() {
@@ -628,16 +630,13 @@ jsShapes.controls = (function namespace() {
 
 /* Ranking module */
 jsShapes.ranking = (function namespace() {
-    var ranking = 5, scores = [], ul = $('ranking'), item, li, i;
+    var ranking = 5, ul = $('ranking'), item, li, i, scores = [];
 
     function add(playerName, score){
-        item = { date: new Date(), score: score, name: playerName }
-        item.id = 'ranking-' + item.date.getTime();
+        var time = new Date();
+        item = { date: getTime(time), score: score, name: playerName };
+        item.id = 'ranking-' + time.getTime();
         item.display = false; // default value
-
-        // date to '10.10.2011 12:42:32'
-        item.date = item.date.getDate() + '.' + item.date.getMonth() + '.' + item.date.getFullYear() + ' '
-            + item.date.getHours() + ':' + item.date.getMinutes() + ':' + item.date.getSeconds();
 
         item.content = '<span class="points">' + item.score + ' pts</span> '
                     + '<span class="name">' + item.name + '</span> '
@@ -651,6 +650,7 @@ jsShapes.ranking = (function namespace() {
     function update() {
 
         scores.forEach(function (item, index) {
+
             // append new result
             if (!item.display) {
                 li = document.createElement('li');
@@ -665,7 +665,31 @@ jsShapes.ranking = (function namespace() {
             ul.removeChild(ul.lastChild);
             scores = scores.splice(0, ranking);
         }
+        
+        // Save scores to localStorage
+        localStorage.setItem('topten', JSON.stringify(scores));
     }
+
+    getTime = (function (time) {
+        var fixedTime = [time.getDate(), time.getMonth() + 1, time.getFullYear(), time.getHours(), time.getMinutes(), time.getSeconds()];
+        // Fix one number presentation
+        fixedTime.forEach(function (value, index, array) {
+            array[index] = (value.toString().length === 1) ? '0' + value.toString() : value;
+        });
+        // date to '10.10.2011 12:42:32'
+        return fixedTime[0] + '.' + fixedTime[1] + '.' + fixedTime[2] + ' ' + fixedTime[3] + ':' + fixedTime[4] + ':' + fixedTime[5];
+    });
+
+    (function init() {
+        var scores_tmp = JSON.parse(localStorage.getItem('topten'));
+
+        for (item in scores_tmp) {
+            scores_tmp[item].display = false; 
+            scores.push(scores_tmp[item]);
+        }        
+        // Update scoreboard
+        update();
+    }());
 
     return {
         add: add,
@@ -681,7 +705,7 @@ jsShapes.messages = (function namespace() {
         function exist(e) { return (e.id === m.id); }
         // tests duplicated messages
         if(!messages.some(exist)) {
-            m.time = (new Date).getTime();
+            m.time = (new Date()).getTime();
             m.fade = false;
 
             messages.push(m);
@@ -696,7 +720,7 @@ jsShapes.messages = (function namespace() {
 
     function update() {
         // Removes old messages
-        now = (new Date).getTime();
+        now = (new Date()).getTime();
 
         messages.forEach(function (m, i) {
             li = $(m.id);
@@ -731,7 +755,7 @@ window.onload = (function namespace() {
         window.webkitRequestAnimationFrame ||
         window.mozRequestAnimationFrame    ||
         window.oRequestAnimationFrame      ||
-        window.msRequestAnimationFrame
+        window.msRequestAnimationFrame;
     }());
 
     jsShapes.game.init();
