@@ -153,17 +153,19 @@ var GameElement = (function namespace() {
             return this; // method chaining
         },
 
-        advance: function () {
+        advance: function (fpsCalibration) {
             // If object type is Bullet, some changes to advance function.
             // Keep dx/dy values constant. When bullet touches wall, its dy/dx gets value = 0
 
             // 0, 1, 2, 3 = up, down, left, right
             // Circle this.x, this.y points in middle of the circle
             // Rectangle this.x, this.y points in topleft corner
+            var speed = fpsCalibration * this.speed;
+
             this.offset[0] = (this.shape === 'circle') ? this.y - this.size : this.y;
-            this.offset[1] = this.y + this.size + this.speed;
+            this.offset[1] = this.y + this.size + speed;
             this.offset[2] = (this.shape === 'circle') ? this.x - this.size : this.x;
-            this.offset[3] = this.x + this.size + this.speed;
+            this.offset[3] = this.x + this.size + speed;
 
             this.edge[0] = (this.shape === 'circle') ? this.y - this.size : this.y;
             this.edge[1] = jsShapes.height - this.y - this.size;
@@ -172,10 +174,10 @@ var GameElement = (function namespace() {
 
             // Moving up
             if (this.dy < 0) {
-                if (this.offset[0] >= this.speed) { // room for subtract
-                    this.y -= this.speed;
+                if (this.offset[0] >= speed) { // room for subtract
+                    this.y -= speed;
                     // Keep Bullet dx/dy values constant
-                    if (!(this instanceof Bullet)) { this.dy += this.speed; } else { /* Dummy */ }
+                    if (!(this instanceof Bullet)) { this.dy += speed; } else { /* Dummy */ }
                 } else { //near edge
                     this.y -= this.edge[0];
                     this.dy = 0;
@@ -185,9 +187,9 @@ var GameElement = (function namespace() {
             // Moving down
             if (this.dy > 0) {
                 if (this.offset[1] <= jsShapes.height) { // room for subtract
-                    this.y += this.speed;
+                    this.y += speed;
                     // Keep Bullet dx/dy values constant
-                    if (!(this instanceof Bullet)) { this.dy -= this.speed; } else { /* Dummy */ }
+                    if (!(this instanceof Bullet)) { this.dy -= speed; } else { /* Dummy */ }
                 } else { // near edge
                     this.y += this.edge[1];
                     this.dy = 0;
@@ -196,10 +198,10 @@ var GameElement = (function namespace() {
 
             // Moving left
             if (this.dx < 0) {
-                if (this.offset[2] >= this.speed) { // room for subtract
-                    this.x -= this.speed;
+                if (this.offset[2] >= speed) { // room for subtract
+                    this.x -= speed;
                     // Keep Bullet dx/dy values constant
-                    if(!(this instanceof Bullet)) { this.dx += this.speed; } else { /* Dummy */ }
+                    if(!(this instanceof Bullet)) { this.dx += speed; } else { /* Dummy */ }
                 } else { //near edge
                     this.x -= this.edge[2];
                     this.dx = 0;
@@ -209,9 +211,9 @@ var GameElement = (function namespace() {
             // Moving right
             if (this.dx > 0) {
                 if (this.offset[3] <= jsShapes.width) { // room for subtract
-                    this.x += this.speed;
+                    this.x += speed;
                     // Keep Bullet dx/dy values constant
-                    if(!(this instanceof Bullet)) { this.dx -= this.speed; } else { /* Dummy */ }
+                    if(!(this instanceof Bullet)) { this.dx -= speed; } else { /* Dummy */ }
                 } else { // near edge
                     this.x += this.edge[3];
                     this.dx = 0;
@@ -247,8 +249,8 @@ var Player = (function namespace() {
         this.x = 400;
         this.y = 380;
         this.size = 10;
-        this.step = 5; // 500 => always on move
-        this.speed = 5;
+        this.step = 10; // 500 => always on move
+        this.speed = 10;
         this.score = 0;
         this.shape = 'circle';
         this.color = colors[utils.randomRange(0, colors.length - 1)][1];
@@ -269,7 +271,7 @@ var Bullet = (function namespace() {
         this.y = player.y;
         this.dx = player.dx;
         this.dy = player.dy;
-        this.speed = 10;
+        this.speed = 20;
         this.size = 4;
         this.shape = 'circle';
     }
@@ -298,7 +300,7 @@ var Opponent = (function namespace() {
         // Opponent init by randomizer functions
         if (!level) { level = 1; } // default level
         this.shape =  utils.randomOdds('circle', 'rectangle', 0.5);
-        this.step = utils.randomRange(level / 2, level);
+        this.step = utils.randomRange(level, level*2);
         this.size = utils.randomRange((40 / Math.sqrt(level)), (100 - level * 3));
         this.speed =  this.step / 2;
         this.x = (this.shape === 'circle') // depends on shape and size
@@ -361,12 +363,12 @@ jsShapes.game = (function namespace() {
         for (i = 0; i < bullets.length; i++) { bullets[i].draw(el.ctx); } // draws bullets to canvas
     }
 
-    function controller() {
+    function controller(fpsCalibration) {
         if (jsShapes.activeDirection[0]) { player.move('up'); }
         if (jsShapes.activeDirection[1]) { player.move('down'); }
         if (jsShapes.activeDirection[2]) { player.move('left'); }
         if (jsShapes.activeDirection[3]) { player.move('right'); }
-        if (jsShapes.shooting && jsShapes.running) { shoot(); }
+        if (jsShapes.shooting && jsShapes.running) { shoot(fpsCalibration); }
     }
 
     function start() {
@@ -435,7 +437,7 @@ jsShapes.game = (function namespace() {
         if(jsShapes.DEBUG) { console.log('Game Over'); }
     }
 
-    function shoot() {
+    function shoot(fpsCalibration) {
         if(misc.overheat && !misc.overheatTimer) {
             // After 5sec, sets overheat and overheatTimer to false.
             // overheatTimer prevent overlapping overheats.
@@ -447,7 +449,7 @@ jsShapes.game = (function namespace() {
         } else if (misc.overheat) { utils.shake(el.canvas, 8); // intensity = 8, inform player about a weapon overheating
         } else { bullets.push(new Bullet(player)); }
 
-        if (bullets.length > 20) { misc.overheat = true; }
+        if (bullets.length > 10 / fpsCalibration) { misc.overheat = true; }
     }
 
     function fps() {
@@ -489,16 +491,16 @@ jsShapes.game = (function namespace() {
     }
 
     // gameloop
-    function gameLoop() {
+    function gameLoop(fpsCalibration) {
         misc.frames++;
         levelUp();
         render();
         mod.messages.update();
-        player.advance();
+        player.advance(fpsCalibration);
 
         // bullets advance and check if not moving
         bullets.forEach(function (bull) {
-            bull.advance();
+            bull.advance(fpsCalibration);
             if (!bull.isMoving()) { bull.hit = true; }
         });
 
@@ -507,7 +509,7 @@ jsShapes.game = (function namespace() {
              // If opponent collided to wall -> gameOver
             if (opp.onBottomEdge()) { gameOver(); }
             // Else, move opponent
-            else { opp.advance().move('down'); }
+            else { opp.advance(fpsCalibration).move('down'); }
 
             // Delete opponents by hit
             if (opp.collision(player)) {
@@ -543,8 +545,9 @@ jsShapes.game = (function namespace() {
 
     // basic loop
     function loop() {
-        controller(); // Respond to current user input
-        if (jsShapes.running) { gameLoop(); }
+        var fpsCalibration = 60. / misc.frame || 1;
+        controller(fpsCalibration); // Respond to current user input
+        if (jsShapes.running) { gameLoop(fpsCalibration); }
         // Better performance than setInterval
         requestAnimFrame(loop);
     }
